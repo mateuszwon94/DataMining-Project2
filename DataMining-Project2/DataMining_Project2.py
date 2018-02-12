@@ -22,13 +22,13 @@ random.shuffle(clusters_color)
 
 # Nice output :)
 def print_point(point, x, y):
-    print("(%.2f, %s)  -> id=%d,  \tid_of_closest_neighbor=%s,\tcluster=%s,\tdensity=%d,\tdistance_to_higher_density_point=%.4f" % \
-        (point[x], point[y], point["id"], str(point["id_of_point_with_higher_density"]), 
+    print("(%.2f, %s)  -> id=%d,  \tid_of_closest_neighbor=%s,\trefed_points=%s,\tcluster=%s,\tdensity=%d,\tdistance_to_higher_density_point=%.4f" % \
+        (point[x], point[y], point["id"], str(point["id_of_point_with_higher_density"]), str(point["refed_points"]), 
          str(point["cluster"]), point["density"], point["distance_to_higher_density_point"]))
 
 # Dinstance between two points
 def distance_to(point_i, point_j, x, y):
-    return math.sqrt((point_i[x] - point_j[x])**2 + (point_i[y] - point_j[y])**2) / 10000000
+    return math.sqrt((point_i[x] - point_j[x])**2 + (point_i[y] - point_j[y])**2) / 5000000
 
 # Function computing density for points
 # Density is computed as a number of points which is closed to current than cutoff_distance
@@ -56,7 +56,8 @@ def set_distance_to_higher_density_point(point_i, points):
         distance = distance_to(point_i, point_j, "Temperature", "Date Int")
         if distance < point_i["distance_to_higher_density_point"]:
             point_i["distance_to_higher_density_point"] = distance
-            point_i["id_of_point_with_higher_density"] = point_j["id"]
+            point_i["id_of_point_with_higher_density"] = int(point_j["id"])
+            point_j["refed_points"].append(point_i["id"])
 
     if point_i["distance_to_higher_density_point"] == float("inf"):
        point_i["distance_to_higher_density_point"] = 0
@@ -69,16 +70,20 @@ def set_distance_to_higher_density_point(point_i, points):
 
     return point_i
 
+def set_refed_points(point_i, points):
+    point_i["refed_points"] = [ p["id"] for p in points if p["id_of_point_with_higher_density"] == point_i["id"] ]
+
+    return point_i
+
 def compleat(point, labels):
     (id, point) = point
     new_point = { labels[i] : elem for i, elem in enumerate(point) if elem != "" }
-    new_point["id"] = id
 
     for key in new_point.keys():
         try:
             new_point[key] = float(new_point[key])
         except: pass
-
+        
     (D, T, Z) = new_point["Formatted Date"].split(" ")
     (year, month, day) = D.split("-")
     (hours, minutes, seconds) = T.split(":")
@@ -87,10 +92,13 @@ def compleat(point, labels):
     new_point["Time"] = new_point["Formated Date"].time()
     new_point["Date Int"] = time.mktime(new_point["Formated Date"].timetuple())
 
+    new_point["refed_points"] = []
     new_point["density"] = None
     new_point["distance_to_higher_density_point"] = None
     new_point["id_of_point_with_higher_density"] = None
     new_point["cluster"] = None
+    
+    new_point["id"] = int(id)
 
     return new_point
     
@@ -131,10 +139,16 @@ def get_and_calculate(sc, n, limit, cutoff_distance):
 
     points_with_distance_to_higher_density_point = points_with_local_density.map(
         lambda point: set_distance_to_higher_density_point(point, list_of_random_points))
+    list_of_points_with_distance_to_higher_density_point = [point for point in points_with_distance_to_higher_density_point.toLocalIterator()]
 
-    print("points with higher density seted")
+    print("points with higher density set")
+
+    points_with_refed_points = points_with_distance_to_higher_density_point.map(
+        lambda point: set_refed_points(point, list_of_points_with_distance_to_higher_density_point))
+
+    print("refed points set")
     
-    return points_with_distance_to_higher_density_point
+    return points_with_refed_points
 
 def plot_of_density_and_distance_to_higher_density_point(points, file_name):
     points = points.collect()
@@ -198,14 +212,33 @@ def assign_points_to_clusters(points):
         point["cluster"] = ref_point["cluster"]
 
         return point
+
+    def set_clusters(center, all_points):
+        for p in center["refed_points"]:
+            print(p, type(p))
+            ref_p = [ p for p in all_points if p["id"] == p ][0]
+            if ref_p["cluster"] == None:
+                ref_p["cluster"] = center["cluster"]
+                set_clusters(ref_p)
+                print(p)
     
-    print(points.filter(lambda point: point["cluster"] == None).count())
+    #print(points.filter(lambda point: point["cluster"] == None).count())
 
-    while None in [point["cluster"] for point in points.collect()]:
-        all_points = points.collect()
-        points = points.map(lambda point: set_cluster(point, all_points))
+    for center in [point for point in points.toLocalIterator() if point["cluster"] != None]:
+        set_clusters(center, points.toLocalIterator())
+    
+    for point in points_with_refed_points.toLocalIterator():
+        print_point(point, "Temperature", "Date Int")
 
-        print(points.filter(lambda point: point["cluster"] == None).count())
+    return points
+
+    #return points
+
+    #while None in [point["cluster"] for point in points.collect()]:
+    #    all_points = points.collect()
+    #    points = points.map(lambda point: set_cluster(point, all_points))
+
+    #    print(points.filter(lambda point: point["cluster"] == None).count())
 
 def assign_points_to_clusters_working(points):
         
@@ -236,6 +269,7 @@ def main(sc, clusters, n, limit, cutoff_distance):
     plot_of_density_and_distance_to_higher_density_point(points, 'density.png')
 
     points = assign_points_to_clusters(points)
+    #points.foreach(print)
     plot_clusters(points, "Temperature", "Date Int", 'clusters.png')  
 
     print("\n\nPoints:")
@@ -328,7 +362,7 @@ if __name__ == "__main__":
     conf = SparkConf().setAppName('DataMining_Project')
     sc = SparkContext(conf=conf)
 
-    main(sc, clusters=5, n=100, limit=10, cutoff_distance=1)
+    main(sc, clusters=12, n=100, limit=10, cutoff_distance=1)
 
     #complexity_in_time(sc, clusters=5, limit=10, cutoff_distance=1, p_min=20, p_max=1000, k=20)
     #complexity_in_clusters_number(sc, clusters_min=3, clusters_max=50, limit=10, cutoff_distance=1, p=300)
