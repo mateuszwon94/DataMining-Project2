@@ -28,7 +28,7 @@ def print_point(point, x, y):
 
 # Dinstance between two points
 def distance_to(point_i, point_j, x, y):
-    return math.sqrt((point_i[x] - point_j[x])**2 + (point_i[y] - point_j[y])**2) / 5000000
+    return math.sqrt((point_i[x] - point_j[x])**2 + (point_i[y] - point_j[y])**2)
 
 # Function computing density for points
 # Density is computed as a number of points which is closed to current than cutoff_distance
@@ -53,7 +53,7 @@ def set_distance_to_higher_density_point(point_i, points):
 
         if point_i["density"] >= point_j["density"]: continue
 
-        distance = distance_to(point_i, point_j, "Temperature", "Date Int")
+        distance = distance_to(point_i, point_j, "169_pressure", "169_pm1")
         if distance < point_i["distance_to_higher_density_point"]:
             point_i["distance_to_higher_density_point"] = distance
             point_i["id_of_point_with_higher_density"] = int(point_j["id"])
@@ -65,8 +65,8 @@ def set_distance_to_higher_density_point(point_i, points):
     for point_j in points:
         if point_i == point_j: continue
             
-        if distance_to(point_i, point_j, "Temperature", "Date Int") > point_i["distance_to_higher_density_point"]:
-            point_i["distance_to_higher_density_point"] = distance_to(point_i, point_j, "Temperature", "Date Int")
+        if distance_to(point_i, point_j, "169_pressure", "169_pm1") > point_i["distance_to_higher_density_point"]:
+            point_i["distance_to_higher_density_point"] = distance_to(point_i, point_j, "169_pressure", "169_pm1")
 
     return point_i
 
@@ -77,20 +77,22 @@ def set_refed_points(point_i, points):
 
 def compleat(point, labels):
     (id, point) = point
-    new_point = { labels[i] : elem for i, elem in enumerate(point) if elem != "" }
+    new_point = { labels[i] : elem for i, elem in enumerate(point) if elem != "" or elem != None }
 
     for key in new_point.keys():
         try:
             new_point[key] = float(new_point[key])
+            if "pressure" in key:
+                new_point[key] /= 100.
         except: pass
         
-    (D, T, Z) = new_point["Formatted Date"].split(" ")
+    (D, T) = new_point["UTC time"].split("T")
     (year, month, day) = D.split("-")
     (hours, minutes, seconds) = T.split(":")
-    new_point["Formated Date"] = datetime.datetime(int(year), int(month), int(day), int(hours), int(minutes), int(float(seconds)))
-    new_point["Date"] = new_point["Formated Date"].date()
-    new_point["Time"] = new_point["Formated Date"].time()
-    new_point["Date Int"] = time.mktime(new_point["Formated Date"].timetuple())
+    new_point["UTC time"] = datetime.datetime(int(year), int(month), int(day), int(hours), int(minutes), int(float(seconds)))
+    new_point["Date"] = new_point["UTC time"].date()
+    new_point["Time"] = new_point["UTC time"].time()
+    #new_point["Date Int"] = time.mktime(new_point["UTC time"].timetuple())
 
     new_point["refed_points"] = []
     new_point["density"] = None
@@ -115,13 +117,13 @@ def get_and_calculate(sc, n, limit, cutoff_distance):
         ax.set_ylabel(y)
         fig.savefig(file_name)
 
-    with open('weatherHistory.csv') as csvfile:
+    with open('april-2017.csv') as csvfile:
         points = [ [ elem for elem in row ] for row in csv.reader(csvfile) ]
 
     labels = points[0]
     points = [ (i, point) for i, point in enumerate(points[1:]) ]
-    random.shuffle(points)
-    pointsRDD = sc.parallelize(points[:700])
+    print("points:", int(len(points)))
+    pointsRDD = sc.parallelize(points)
 
     copleated_points = pointsRDD.map(
         lambda point: compleat(point, labels))
@@ -129,10 +131,10 @@ def get_and_calculate(sc, n, limit, cutoff_distance):
     
     print("points compleated")
 
-    plot_of_x_and_y(list_of_copleated_points, "Temperature", "Date", "x_and_y.png")
+    plot_of_x_and_y(list_of_copleated_points, "169_pressure", "169_pm1", "x_and_y.png")
 
     points_with_local_density = copleated_points.map(
-        lambda point: set_density(point, list_of_copleated_points, "Temperature", "Date Int", cutoff_distance))
+        lambda point: set_density(point, list_of_copleated_points, "169_pressure", "169_pm1", cutoff_distance))
     list_of_random_points = [point for point in points_with_local_density.toLocalIterator()]
     
     print("local density computed")
@@ -197,7 +199,7 @@ def choose_centers_of_clusters(points, n):
     print("\n\nCenters of clusters:")
     for point in points.collect():
         if point["cluster"]:
-            print_point(point, "Temperature", "Date")
+            print_point(point, "169_pressure", "169_pm1")
 
     return points
 
@@ -214,21 +216,26 @@ def assign_points_to_clusters(points):
         return point
 
     def set_clusters(center, all_points):
-        for p in center["refed_points"]:
-            print(p, type(p))
-            ref_p = [ p for p in all_points if p["id"] == p ][0]
-            if ref_p["cluster"] == None:
-                ref_p["cluster"] = center["cluster"]
-                set_clusters(ref_p)
-                print(p)
+        for p_id in center["refed_points"]:
+            for pp in all_points:
+                if pp["id"] == p_id and pp["cluster"] == None:
+                    pp["cluster"] = center["cluster"]
+                    set_clusters(pp, all_points)
+                    break
+
+#            ref_p = [ pp for pp in all_points if pp["id"] == p ][0]
+#            if ref_p["cluster"] == None:
+#                ref_p["cluster"] = center["cluster"]
+#                set_clusters(ref_p)
+#                print(p)
     
     #print(points.filter(lambda point: point["cluster"] == None).count())
 
     for center in [point for point in points.toLocalIterator() if point["cluster"] != None]:
         set_clusters(center, points.toLocalIterator())
     
-    for point in points_with_refed_points.toLocalIterator():
-        print_point(point, "Temperature", "Date Int")
+    for point in points.toLocalIterator():
+        print_point(point, "169_pressure", "169_pm1")
 
     return points
 
@@ -270,11 +277,11 @@ def main(sc, clusters, n, limit, cutoff_distance):
 
     points = assign_points_to_clusters(points)
     #points.foreach(print)
-    plot_clusters(points, "Temperature", "Date Int", 'clusters.png')  
+    plot_clusters(points, "169_pressure", "169_pm1", 'clusters.png')  
 
     print("\n\nPoints:")
     for point in points.collect():
-        print_point(point, "Temperature", "Date")
+        print_point(point, "169_pressure", "169_pm1")
 
 def complexity_in_time(sc, clusters, limit, cutoff_distance, p_min, p_max, k):
     complexity_data = {"points": [], "time": []}
@@ -362,7 +369,7 @@ if __name__ == "__main__":
     conf = SparkConf().setAppName('DataMining_Project')
     sc = SparkContext(conf=conf)
 
-    main(sc, clusters=12, n=100, limit=10, cutoff_distance=1)
+    main(sc, clusters=5, n=100, limit=10, cutoff_distance=5)
 
     #complexity_in_time(sc, clusters=5, limit=10, cutoff_distance=1, p_min=20, p_max=1000, k=20)
     #complexity_in_clusters_number(sc, clusters_min=3, clusters_max=50, limit=10, cutoff_distance=1, p=300)

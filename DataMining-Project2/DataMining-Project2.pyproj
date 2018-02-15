@@ -23,6 +23,10 @@
   <ItemGroup>
     <Compile Include="DataMining_Project2.py" />
   </ItemGroup>
+  <ItemGroup>
+    <Content Include="weatherHistory.csv" />
+    <Content Include="weather_data_nyc_centralpark_2016%281%29.csv" />
+  </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Python Tools\Microsoft.PythonTools.targets" />
   <!-- Uncomment the CoreCompile target to enable the Build command in
        Visual Studio and specify your pre- and post-build commands in
