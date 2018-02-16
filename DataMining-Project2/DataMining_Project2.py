@@ -22,8 +22,8 @@ random.shuffle(clusters_color)
 
 # Nice output :)
 def print_point(point, x, y):
-    print("(%.2f, %s)  -> id=%d,  \tid_of_closest_neighbor=%s,\trefed_points=%s,\tcluster=%s,\tdensity=%d,\tdistance_to_higher_density_point=%.4f" % \
-        (point[x], point[y], point["id"], str(point["id_of_point_with_higher_density"]), str(point["refed_points"]), 
+    print("(%.2f, %s)  -> id=%d,  \tid_of_closest_neighbor=%s,\tcluster=%s,\tdensity=%d,\tdistance_to_higher_density_point=%.4f" % \
+        (point[x], point[y], point["id"], str(point["id_of_point_with_higher_density"]),
          str(point["cluster"]), point["density"], point["distance_to_higher_density_point"]))
 
 # Dinstance between two points
@@ -57,7 +57,6 @@ def set_distance_to_higher_density_point(point_i, points):
         if distance < point_i["distance_to_higher_density_point"]:
             point_i["distance_to_higher_density_point"] = distance
             point_i["id_of_point_with_higher_density"] = int(point_j["id"])
-            point_j["refed_points"].append(point_i["id"])
 
     if point_i["distance_to_higher_density_point"] == float("inf"):
        point_i["distance_to_higher_density_point"] = 0
@@ -92,9 +91,7 @@ def compleat(point, labels):
     new_point["UTC time"] = datetime.datetime(int(year), int(month), int(day), int(hours), int(minutes), int(float(seconds)))
     new_point["Date"] = new_point["UTC time"].date()
     new_point["Time"] = new_point["UTC time"].time()
-    #new_point["Date Int"] = time.mktime(new_point["UTC time"].timetuple())
 
-    new_point["refed_points"] = []
     new_point["density"] = None
     new_point["distance_to_higher_density_point"] = None
     new_point["id_of_point_with_higher_density"] = None
@@ -141,16 +138,10 @@ def get_and_calculate(sc, n, limit, cutoff_distance):
 
     points_with_distance_to_higher_density_point = points_with_local_density.map(
         lambda point: set_distance_to_higher_density_point(point, list_of_random_points))
-    list_of_points_with_distance_to_higher_density_point = [point for point in points_with_distance_to_higher_density_point.toLocalIterator()]
 
     print("points with higher density set")
-
-    points_with_refed_points = points_with_distance_to_higher_density_point.map(
-        lambda point: set_refed_points(point, list_of_points_with_distance_to_higher_density_point))
-
-    print("refed points set")
     
-    return points_with_refed_points
+    return points_with_distance_to_higher_density_point
 
 def plot_of_density_and_distance_to_higher_density_point(points, file_name):
     points = points.collect()
@@ -214,58 +205,20 @@ def assign_points_to_clusters(points):
         point["cluster"] = ref_point["cluster"]
 
         return point
-
-    def set_clusters(center, all_points):
-        for p_id in center["refed_points"]:
-            for pp in all_points:
-                if pp["id"] == p_id and pp["cluster"] == None:
-                    pp["cluster"] = center["cluster"]
-                    set_clusters(pp, all_points)
-                    break
-
-#            ref_p = [ pp for pp in all_points if pp["id"] == p ][0]
-#            if ref_p["cluster"] == None:
-#                ref_p["cluster"] = center["cluster"]
-#                set_clusters(ref_p)
-#                print(p)
     
-    #print(points.filter(lambda point: point["cluster"] == None).count())
-
-    for center in [point for point in points.toLocalIterator() if point["cluster"] != None]:
-        set_clusters(center, points.toLocalIterator())
-    
-    for point in points.toLocalIterator():
-        print_point(point, "169_pressure", "169_pm1")
-
-    return points
-
-    #return points
-
-    #while None in [point["cluster"] for point in points.collect()]:
-    #    all_points = points.collect()
-    #    points = points.map(lambda point: set_cluster(point, all_points))
-
-    #    print(points.filter(lambda point: point["cluster"] == None).count())
-
-def assign_points_to_clusters_working(points):
-        
-    def set_cluster(point, all_points):
-        if point["cluster"] is not None or point["id_of_point_with_higher_density"] is None:
-            return point
-
-        ref_point = [ p for p in all_points 
-                            if p["id"] == point["id_of_point_with_higher_density"] ][0]
-        point["cluster"] = ref_point["cluster"]
-
-        return point
-    
-    print(points.filter(lambda point: point["cluster"] == None).count())
+    was = points.filter(lambda point: point["cluster"] == None).count()
+    print(was)
 
     while None in [point["cluster"] for point in points.collect()]:
         all_points = points.collect()
         points = points.map(lambda point: set_cluster(point, all_points))
 
-        print(points.filter(lambda point: point["cluster"] == None).count())
+        now = points.filter(lambda point: point["cluster"] == None).count()
+        print(now)
+        if was == now: break
+        was = now
+
+    return points
 
 def main(sc, clusters, n, limit, cutoff_distance):
     clusters_color = ['black', 'green', 'blue', 'red', 'yellow', 'purple', 'cyan', 'lime']
@@ -276,7 +229,6 @@ def main(sc, clusters, n, limit, cutoff_distance):
     plot_of_density_and_distance_to_higher_density_point(points, 'density.png')
 
     points = assign_points_to_clusters(points)
-    #points.foreach(print)
     plot_clusters(points, "169_pressure", "169_pm1", 'clusters.png')  
 
     print("\n\nPoints:")
@@ -369,7 +321,7 @@ if __name__ == "__main__":
     conf = SparkConf().setAppName('DataMining_Project')
     sc = SparkContext(conf=conf)
 
-    main(sc, clusters=5, n=100, limit=10, cutoff_distance=5)
+    main(sc, clusters=5, n=100, limit=10, cutoff_distance=10)
 
     #complexity_in_time(sc, clusters=5, limit=10, cutoff_distance=1, p_min=20, p_max=1000, k=20)
     #complexity_in_clusters_number(sc, clusters_min=3, clusters_max=50, limit=10, cutoff_distance=1, p=300)
