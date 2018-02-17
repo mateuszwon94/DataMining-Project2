@@ -111,18 +111,6 @@ def compleat(point, labels):
 # Function generates n random points 
 # and calculates density and distance to higher density point
 def get_and_calculate(sc, csv_file_name, cutoff_distance):
-
-    # Simple plot of generated points
-    def plot_of_x_and_y(points, x_label, y_label, file_name):
-        x = [point[x_label] for point in points]
-        y = [point[y_label] for point in points]
-        fig, ax = matplotlib.pyplot.subplots()
-        ax.scatter(x, y)
-        ax.set_xlabel(x_label)
-        ax.set_ylabel(y_label)
-        fig.savefig(file_name)
-        print("Image '%s' saved!" % file_name)
-
     with open(csv_file_name) as csvfile:
         points = [ [ elem for elem in row ] for row in csv.reader(csvfile, delimiter=';') ]
 
@@ -153,7 +141,24 @@ def get_and_calculate(sc, csv_file_name, cutoff_distance):
     print("points with higher density set")
     
     return points_with_distance_to_higher_density_point
-    
+ 
+def get_color(point, clusters_color):
+    if point["cluster"] is None:
+        return clusters_color[0]
+    return clusters_color[point["cluster"]]
+
+# Simple plot of generated points
+def plot_of_x_and_y(points, x_label, y_label, file_name):
+    x = [point[x_label] for point in points]
+    y = [point[y_label] for point in points]
+    c = [get_color(point, clusters_color) for point in points]
+    fig, ax = matplotlib.pyplot.subplots()
+    ax.scatter(x, y)
+    ax.set_xlabel(x_label)
+    ax.set_ylabel(y_label)
+    fig.savefig(file_name)
+    print("Image '%s' saved!" % file_name)
+
 def plot_of_density_and_distance_to_higher_density_point(points, file_name):
     points = points.collect()
     x = [point["density"] for point in points]
@@ -167,12 +172,6 @@ def plot_of_density_and_distance_to_higher_density_point(points, file_name):
     print("Image '%s' saved!" % file_name)
 
 def plot_clusters(points, x_label, y_label, file_name):
-
-    def get_color(point, clusters_color):
-        if point["cluster"] is None:
-            return clusters_color[0]
-        return clusters_color[point["cluster"]]
-
     x = [point[x_label] for point in points.collect()]
     y = [point[y_label] for point in points.collect()]
     c = [get_color(point, clusters_color) for point in points.collect()]
@@ -315,8 +314,6 @@ def check_of_cutoff_distance(sc, clusters, limit, cutoff_distance_min, cutoff_di
         #    continue
 
 def main(sc, csv_file_name, clusters, cutoff_distance):
-    clusters_color = ['black', 'green', 'blue', 'red', 'yellow', 'purple', 'cyan', 'lime']
-
     points = get_and_calculate(sc, csv_file_name, cutoff_distance)
     points = choose_centers_of_clusters(points, clusters)
     print("centers done")
@@ -325,6 +322,7 @@ def main(sc, csv_file_name, clusters, cutoff_distance):
     points = assign_points_to_clusters(points)
     print("clusters done")
     plot_clusters(points, X, Y, 'clusters.png')  
+    plot_of_x_and_y(points, "day_of_year", "pm1", "date_and_pm1_clusters.png")
 
     print("\n\nPoints:")
     for point in points.collect():
