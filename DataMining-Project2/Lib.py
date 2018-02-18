@@ -53,7 +53,6 @@ def plot_of_x_and_y(points, x_label, y_label, file_name):
     print("Image '%s' saved!" % file_name)
 
 def plot_temperature_humidity_pressure(points, file_name):
-    points = points.collect()
     x = [point["day_of_year"] for point in points]
     y1 = [point["temperature"] for point in points]
     y2 = [point["humidity"] for point in points]
