@@ -21,8 +21,8 @@ clusters_color = [name for name, c in dict(colors.BASE_COLORS, **colors.CSS4_COL
 random.shuffle(clusters_color)
 
 # Dinstance between two points
-def distance_to(point_i, point_j, x, y, metric=distance.euclidean):
-    return metric([point_i[x], point_i[y]], [point_j[x], point_j[y]])
+def distance_to(point_i, point_j, metric=distance.euclidean):
+    return metric(point_i["main_data"], point_j["main_data"])
 
 def get_color(point, clusters_color):
     if point["cluster"] is None:

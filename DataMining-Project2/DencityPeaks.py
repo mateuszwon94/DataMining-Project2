@@ -19,6 +19,7 @@ from Lib import *
 
 X = 'temperature'
 Y = 'pm1'
+main_data = ('temperature', 'pm1')
 
 # Nice output :)
 def print_point(point, x, y):
@@ -28,13 +29,13 @@ def print_point(point, x, y):
 
 # Function computing density for points
 # Density is computed as a number of points which is closed to current than cutoff_distance
-def set_density(point_i, points, x, y, cutoff_distance):
+def set_density(point_i, points, cutoff_distance):
     point_i["density"] = 0
 
     for point_j in points:
         if point_i == point_j: continue
 
-        if distance_to(point_i, point_j, x, y) < cutoff_distance: point_i["density"] += 1
+        if distance_to(point_i, point_j) < cutoff_distance: point_i["density"] += 1
 
     return point_i
 
@@ -49,7 +50,7 @@ def set_distance_to_higher_density_point(point_i, points):
 
         if point_i["density"] >= point_j["density"]: continue
 
-        distance = distance_to(point_i, point_j, X, Y)
+        distance = distance_to(point_i, point_j)
         if distance < point_i["distance_to_higher_density_point"]:
             point_i["distance_to_higher_density_point"] = distance
             point_i["id_of_point_with_higher_density"] = int(point_j["id"])
@@ -60,8 +61,8 @@ def set_distance_to_higher_density_point(point_i, points):
     for point_j in points:
         if point_i == point_j: continue
             
-        if distance_to(point_i, point_j, X, Y) > point_i["distance_to_higher_density_point"]:
-            point_i["distance_to_higher_density_point"] = distance_to(point_i, point_j, X, Y)
+        if distance_to(point_i, point_j) > point_i["distance_to_higher_density_point"]:
+            point_i["distance_to_higher_density_point"] = distance_to(point_i, point_j)
 
     return point_i
 
@@ -91,6 +92,9 @@ def compleat(point, labels):
     new_point["density"] = None
     new_point["distance_to_higher_density_point"] = None
     new_point["id_of_point_with_higher_density"] = None
+
+    new_point["main_data"] = [ new_point[l] for l in main_data ]
+
     new_point["cluster"] = None
     new_point["id"] = int(id)
 
@@ -118,7 +122,7 @@ def get_and_calculate(sc, csv_file_name, cutoff_distance):
     plot_of_x_and_y(list_of_copleated_points, "day_of_year", "pm25", "date_and_pm25.png")
 
     points_with_local_density = copleated_points.map(
-        lambda point: set_density(point, list_of_copleated_points, X, Y, cutoff_distance))
+        lambda point: set_density(point, list_of_copleated_points, cutoff_distance))
     list_of_random_points = [point for point in points_with_local_density.toLocalIterator()]
     
     print("local density computed")
@@ -299,4 +303,3 @@ if __name__ == "__main__":
     #check_of_cutoff_distance(sc, clusters=5, limit=10, cutoff_distance_min=1, cutoff_distance_max=10, p=300)
 
     matplotlib.pyplot.close('all')
-    print("\n\nDataMining_Project!")
