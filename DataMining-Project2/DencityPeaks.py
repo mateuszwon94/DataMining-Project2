@@ -15,12 +15,11 @@ import csv
 import datetime
 from sys import float_info
 from pyspark import SparkContext, SparkConf
-
-clusters_color = [name for name, c in dict(colors.BASE_COLORS, **colors.CSS4_COLORS).items() if "white" not in name]
-random.shuffle(clusters_color)
+from Lib import *
 
 X = 'temperature'
 Y = 'pm1'
+main_data = ('temperature', 'pm1')
 
 # Nice output :)
 def print_point(point, x_label, y_label):
@@ -28,19 +27,15 @@ def print_point(point, x_label, y_label):
         (x_label, point[x_label], y_label, point[y_label], point["day_of_year"], point["id"], str(point["id_of_point_with_higher_density"]),
          str(point["cluster"]), point["density"], point["distance_to_higher_density_point"]))
 
-# Dinstance between two points
-def distance_to(point_i, point_j, x, y):
-    return math.sqrt((point_i[x] - point_j[x])**2 + (point_i[y] - point_j[y])**2)
-
 # Function computing density for points
 # Density is computed as a number of points which is closed to current than cutoff_distance
-def set_density(point_i, points, x, y, cutoff_distance):
+def set_density(point_i, points, cutoff_distance):
     point_i["density"] = 0
 
     for point_j in points:
         if point_i == point_j: continue
 
-        if distance_to(point_i, point_j, x, y) < cutoff_distance: point_i["density"] += 1
+        if distance_to(point_i, point_j) < cutoff_distance: point_i["density"] += 1
 
     return point_i
 
@@ -55,7 +50,7 @@ def set_distance_to_higher_density_point(point_i, points):
 
         if point_i["density"] >= point_j["density"]: continue
 
-        distance = distance_to(point_i, point_j, X, Y)
+        distance = distance_to(point_i, point_j)
         if distance < point_i["distance_to_higher_density_point"]:
             point_i["distance_to_higher_density_point"] = distance
             point_i["id_of_point_with_higher_density"] = int(point_j["id"])
@@ -66,13 +61,8 @@ def set_distance_to_higher_density_point(point_i, points):
     for point_j in points:
         if point_i == point_j: continue
             
-        if distance_to(point_i, point_j, X, Y) > point_i["distance_to_higher_density_point"]:
-            point_i["distance_to_higher_density_point"] = distance_to(point_i, point_j, X, Y)
-
-    return point_i
-
-def set_refed_points(point_i, points):
-    point_i["refed_points"] = [ p["id"] for p in points if p["id_of_point_with_higher_density"] == point_i["id"] ]
+        if distance_to(point_i, point_j) > point_i["distance_to_higher_density_point"]:
+            point_i["distance_to_higher_density_point"] = distance_to(point_i, point_j)
 
     return point_i
 
@@ -102,12 +92,15 @@ def compleat(point, labels):
     new_point["density"] = None
     new_point["distance_to_higher_density_point"] = None
     new_point["id_of_point_with_higher_density"] = None
+
+    new_point["main_data"] = [ new_point[l] for l in main_data ]
+
     new_point["cluster"] = None
     new_point["id"] = int(id)
 
     #print(new_point)
     return new_point
-    
+
 # Function generates n random points 
 # and calculates density and distance to higher density point
 def get_and_calculate(sc, csv_file_name, cutoff_distance):
@@ -119,8 +112,7 @@ def get_and_calculate(sc, csv_file_name, cutoff_distance):
     print("points:", int(len(points)))
     pointsRDD = sc.parallelize(points)
 
-    copleated_points = pointsRDD.map(
-        lambda point: compleat(point, labels))
+    copleated_points = pointsRDD.map(lambda point: compleat(point, labels))
     list_of_copleated_points = [point for point in copleated_points.toLocalIterator()]
     
     print("points compleated")
@@ -130,7 +122,7 @@ def get_and_calculate(sc, csv_file_name, cutoff_distance):
     plot_of_x_and_y(list_of_copleated_points, "day_of_year", "pm25", "date_and_pm25.png")
 
     points_with_local_density = copleated_points.map(
-        lambda point: set_density(point, list_of_copleated_points, X, Y, cutoff_distance))
+        lambda point: set_density(point, list_of_copleated_points, cutoff_distance))
     list_of_random_points = [point for point in points_with_local_density.toLocalIterator()]
     
     print("local density computed")
@@ -141,23 +133,6 @@ def get_and_calculate(sc, csv_file_name, cutoff_distance):
     print("points with higher density set")
     
     return points_with_distance_to_higher_density_point
- 
-def get_color(point, clusters_color):
-    if point["cluster"] is None:
-        return clusters_color[0]
-    return clusters_color[point["cluster"]]
-
-# Simple plot of generated points
-def plot_of_x_and_y(points, x_label, y_label, file_name):
-    x = [point[x_label] for point in points]
-    y = [point[y_label] for point in points]
-    c = ['black' if point["cluster"] is None else get_color(point, clusters_color) for point in points]
-    fig, ax = matplotlib.pyplot.subplots()
-    ax.scatter(x, y, color=c)
-    ax.set_xlabel(x_label)
-    ax.set_ylabel(y_label)
-    fig.savefig(file_name)
-    print("Image '%s' saved!" % file_name)
 
 def plot_of_density_and_distance_to_higher_density_point(points, file_name):
     points = points.collect()
@@ -165,45 +140,12 @@ def plot_of_density_and_distance_to_higher_density_point(points, file_name):
     y = [point["distance_to_higher_density_point"] for point in points]
     c = ['green' if point["cluster"] is not None else 'red' for point in points]
     fig, ax = matplotlib.pyplot.subplots()
-    ax.scatter(x, y, c=c)
+    ax.scatter(x, y, c=c, s=5)
     ax.set_xlabel('density')
     ax.set_ylabel('distance_to_higher_density_point')
     fig.savefig(file_name)
     print("Image '%s' saved!" % file_name)
 
-def plot_clusters(points, x_label, y_label, file_name):
-    x = [point[x_label] for point in points.collect()]
-    y = [point[y_label] for point in points.collect()]
-    c = [get_color(point, clusters_color) for point in points.collect()]
-    fig, ax = matplotlib.pyplot.subplots()
-    ax.scatter(x, y, color=c)
-    ax.set_xlabel(x_label)
-    ax.set_ylabel(y_label)
-    fig.savefig(file_name)
-    print("Image '%s' saved!" % file_name)
-
-def plot_temperature_humidity_pressure(points, file_name):
-    points = points.collect()
-    x = [point["day_of_year"] for point in points]
-    y1 = [point["temperature"] for point in points]
-    y2 = [point["humidity"] for point in points]
-    y3 = [point["pressure"] for point in points]
-    plt.figure(1)
-    plt.subplot(311)
-    plt.plot(x, y1, 'r')
-    plt.xlabel('day_of_year')
-    plt.ylabel('temperature')
-    plt.subplot(312)
-    plt.plot(x, y2, 'b')
-    plt.xlabel('day_of_year')
-    plt.ylabel('humidity')
-    plt.subplot(313)
-    plt.plot(x, y3, 'g')
-    plt.xlabel('day_of_year')
-    plt.ylabel('pressure')
-    plt.savefig(file_name)
-    print("Image '%s' saved!" % file_name)
-        
 def choose_centers_of_clusters(points, n):
     
     # TODO: try to write function, which automatically chooses number of centers
@@ -279,7 +221,7 @@ def complexity_in_time(sc, clusters, limit, cutoff_distance, p_min, p_max, k):
     print("Average time is = %f"% (i, avg))
 
     fig, ax = matplotlib.pyplot.subplots()
-    ax.scatter(complexity_data["points"], complexity_data["time"])
+    ax.scatter(complexity_data["points"], complexity_data["time"], s=5)
     ax.set_xlabel('points')
     ax.set_ylabel('time')
     fig.savefig('complexity_time-%d.png' % clusters)
@@ -307,7 +249,7 @@ def complexity_in_clusters_number(sc, clusters_min, clusters_max, limit, cutoff_
             continue
 
     fig, ax = matplotlib.pyplot.subplots()
-    ax.scatter(complexity_data["points"], complexity_data["time"])
+    ax.scatter(complexity_data["points"], complexity_data["time"], s=5)
     ax.set_xlabel('clusters')
     ax.set_ylabel('time')
     fig.savefig('complexity_clusters-%d.png' % p)
@@ -344,7 +286,7 @@ def main(sc, csv_file_name, clusters, cutoff_distance):
 
     points = assign_points_to_clusters(points)
     print("clusters done")
-    plot_clusters(points, X, Y, 'clusters.png')  
+    plot_clusters(points, X, Y, 'clusters-dencity_peak.png')  
     plot_of_x_and_y(points.collect(), "day_of_year", "pm1", "date_and_pm1_clusters.png")
 
     print("\n\nPoints:")
@@ -370,4 +312,3 @@ if __name__ == "__main__":
     #check_of_cutoff_distance(sc, clusters=5, limit=10, cutoff_distance_min=1, cutoff_distance_max=10, p=300)
 
     matplotlib.pyplot.close('all')
-    print("\n\nDataMining_Project!")
