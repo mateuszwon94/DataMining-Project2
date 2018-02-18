@@ -23,9 +23,9 @@ X = 'temperature'
 Y = 'pm1'
 
 # Nice output :)
-def print_point(point, x, y):
-    print("(%d, %d)  -> id=%d,  \tid_of_closest_neighbor=%s,\tcluster=%s,\tdensity=%d,\tdistance_to_higher_density_point=%.4f" % \
-        (point[x], point[y], point["id"], str(point["id_of_point_with_higher_density"]),
+def print_point(point, x_label, y_label):
+    print("(%s=%d, %s=%d, day_of_year=%d)  -> id=%d,  \tid_of_closest_neighbor=%s,\tcluster=%s,\tdensity=%d,\tdistance_to_higher_density_point=%.4f" % \
+        (x_label, point[x_label], y_label, point[y_label], point["day_of_year"], point["id"], str(point["id_of_point_with_higher_density"]),
          str(point["cluster"]), point["density"], point["distance_to_higher_density_point"]))
 
 # Dinstance between two points
@@ -151,9 +151,9 @@ def get_color(point, clusters_color):
 def plot_of_x_and_y(points, x_label, y_label, file_name):
     x = [point[x_label] for point in points]
     y = [point[y_label] for point in points]
-    c = [get_color(point, clusters_color) for point in points]
+    c = ['black' if point["cluster"] is None else get_color(point, clusters_color) for point in points]
     fig, ax = matplotlib.pyplot.subplots()
-    ax.scatter(x, y)
+    ax.scatter(x, y, color=c)
     ax.set_xlabel(x_label)
     ax.set_ylabel(y_label)
     fig.savefig(file_name)
@@ -182,6 +182,28 @@ def plot_clusters(points, x_label, y_label, file_name):
     fig.savefig(file_name)
     print("Image '%s' saved!" % file_name)
 
+def plot_temperature_humidity_pressure(points, file_name):
+    points = points.collect()
+    x = [point["day_of_year"] for point in points]
+    y1 = [point["temperature"] for point in points]
+    y2 = [point["humidity"] for point in points]
+    y3 = [point["pressure"] for point in points]
+    plt.figure(1)
+    plt.subplot(311)
+    plt.plot(x, y1, 'r')
+    plt.xlabel('day_of_year')
+    plt.ylabel('temperature')
+    plt.subplot(312)
+    plt.plot(x, y2, 'b')
+    plt.xlabel('day_of_year')
+    plt.ylabel('humidity')
+    plt.subplot(313)
+    plt.plot(x, y3, 'g')
+    plt.xlabel('day_of_year')
+    plt.ylabel('pressure')
+    plt.savefig(file_name)
+    print("Image '%s' saved!" % file_name)
+        
 def choose_centers_of_clusters(points, n):
     
     # TODO: try to write function, which automatically chooses number of centers
@@ -315,6 +337,7 @@ def check_of_cutoff_distance(sc, clusters, limit, cutoff_distance_min, cutoff_di
 
 def main(sc, csv_file_name, clusters, cutoff_distance):
     points = get_and_calculate(sc, csv_file_name, cutoff_distance)
+    plot_temperature_humidity_pressure(points, "temperature_humidity_pressure.png")
     points = choose_centers_of_clusters(points, clusters)
     print("centers done")
     plot_of_density_and_distance_to_higher_density_point(points, 'density.png')
@@ -322,17 +345,25 @@ def main(sc, csv_file_name, clusters, cutoff_distance):
     points = assign_points_to_clusters(points)
     print("clusters done")
     plot_clusters(points, X, Y, 'clusters.png')  
-    plot_of_x_and_y(points, "day_of_year", "pm1", "date_and_pm1_clusters.png")
+    plot_of_x_and_y(points.collect(), "day_of_year", "pm1", "date_and_pm1_clusters.png")
 
     print("\n\nPoints:")
-    for point in points.collect():
-        print_point(point, X, Y)
+    points = points.collect()
+
+    i = 1
+    for cluster in range(1, clusters+1) + [None]:
+        for point in points:
+            if point["cluster"] == cluster:
+                print("%4d)" % i, end=' ')
+                print_point(point, X, Y)
+                i += 1
+        print("\n\n")
 
 if __name__ == "__main__":
     conf = SparkConf().setAppName('DataMining_Project')
     sc = SparkContext(conf=conf)
 
-    main(sc, csv_file_name='full-year-2017-studencka-189-small.csv', clusters=4, cutoff_distance=10)
+    main(sc, csv_file_name='full-year-2017-studencka-189-very-small.csv', clusters=4, cutoff_distance=2)
 
     #complexity_in_time(sc, clusters=5, limit=10, cutoff_distance=1, p_min=20, p_max=1000, k=20)
     #complexity_in_clusters_number(sc, clusters_min=3, clusters_max=50, limit=10, cutoff_distance=1, p=300)
