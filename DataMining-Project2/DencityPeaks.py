@@ -15,6 +15,7 @@ import csv
 import datetime
 from sys import float_info
 from pyspark import SparkContext, SparkConf
+from sklearn.metrics import adjusted_rand_score
 from Lib import *
 
 X = 'temperature'
@@ -73,7 +74,7 @@ def compleat(point, labels):
         try:
             new_point[key] = float(new_point[key])
             if "pressure" in key:
-                new_point[key] /= 100.
+                new_point[key] /= 100.0
         except: pass
         
     (D, T) = new_point["time"].split("T")
@@ -280,6 +281,14 @@ def main(sc, csv_file_name, clusters, cutoff_distance):
     points = assign_points_to_clusters(points)
     print("clusters done")
     
+    points_with_right_clusters = points.map(lambda point: set_right_cluster(point))
+    right_center_number = get_right_cluster_numbers(points)
+    points = points.map(lambda point: reasign_cluster_number(point, right_center_number))
+
+    print("Rand Index = ", end="")
+    print(adjusted_rand_score([ point["cluster"]-1 for point in points_with_right_clusters.collect() ],
+                              [ point["cluster"]-1 for point in points.collect() ]))
+
     make_basic_plots(points, sufix='_clusters')
 
     points = points.collect()

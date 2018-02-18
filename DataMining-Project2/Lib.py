@@ -91,6 +91,35 @@ def set_right_cluster(point):
 
     return point
 
+def get_right_cluster(point):
+    if point["date"].month < 3 or point["date"].month == 12:
+        return 1
+    elif point["date"].month < 6:
+        return 2
+    elif point["date"].month < 9:
+        return 3
+    elif point["date"].month < 12:
+        return 4
+
+def get_right_cluster_numbers(points):
+    result = {}
+    for i in range(1, 5):
+        cluster = points.filter(lambda point: point["cluster"] == i)
+
+        c = sorted([ ( j, cluster.filter(lambda point: get_right_cluster(point) == j).count() ) for j in range(1, 5) ], key=lambda k: k[1], reverse=True )
+
+        for val, cc in c:
+            if val not in result.values():
+                result[i] = val
+                break
+
+    return result
+
+def reasign_cluster_number(point, cluster_numbers):
+    point["cluster"] = cluster_numbers[point["cluster"]]
+
+    return point
+
 def make_basic_plots(points, sufix=''):
     points_with_right_clusters = points.map(lambda point: set_right_cluster(point))
     for val in ['temperature', 'day_of_year', 'pressure', 'humidity']:

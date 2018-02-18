@@ -16,6 +16,7 @@ import datetime
 from sys import float_info
 from pyspark import SparkContext, SparkConf
 from scipy.spatial import distance
+from sklearn.metrics import adjusted_rand_score
 from Lib import *
 
 X = 'temperature'
@@ -35,7 +36,7 @@ def compleat(point, labels):
         try:
             new_point[key] = float(new_point[key])
             if "pressure" in key:
-                new_point[key] /= 100.
+                new_point[key] /= 100.0
         except: pass
         
     (D, T) = new_point["time"].split("T")
@@ -132,7 +133,6 @@ def assign_points_to_clusters(points, centers, metric=distance.euclidean):
 def main(sc, csv_file_name, clusters, metric=distance.euclidean):
     func_name = str(metric).split(" ")[1]
     points = get_and_calculate(sc, csv_file_name)
-
     make_basic_plots(points)
 
     centers = choose_centers_of_clusters(points, clusters)
@@ -141,6 +141,15 @@ def main(sc, csv_file_name, clusters, metric=distance.euclidean):
     print("Assign with", func_name, "metric")
     points = assign_points_to_clusters(points, centers, metric)
     print("clusters done")
+
+    points_with_right_clusters = points.map(lambda point: set_right_cluster(point))
+    right_center_number = get_right_cluster_numbers(points)
+    points = points.map(lambda point: reasign_cluster_number(point, right_center_number))
+
+    print("Rand Index = ", end="")
+    print(adjusted_rand_score([ point["cluster"]-1 for point in points_with_right_clusters.collect() ],
+                              [ point["cluster"]-1 for point in points.collect() ]))
+
     plot_clusters(points, X, Y, 'clusters_K-mean_' + func_name + '.png')  
     
     make_basic_plots(points, sufix='_clusters_'+ func_name)
