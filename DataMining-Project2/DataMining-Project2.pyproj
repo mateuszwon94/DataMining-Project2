@@ -4,7 +4,7 @@
     <SchemaVersion>2.0</SchemaVersion>
     <ProjectGuid>403535bd-ae35-4fb8-a503-b343039ed06d</ProjectGuid>
     <ProjectHome>.</ProjectHome>
-    <StartupFile>DataMining_Project2.py</StartupFile>
+    <StartupFile>DencityPeaks.py</StartupFile>
     <SearchPath>
     </SearchPath>
     <WorkingDirectory>.</WorkingDirectory>
@@ -21,11 +21,18 @@
     <EnableUnmanagedDebugging>false</EnableUnmanagedDebugging>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="DataMining_Project2.py" />
+    <Compile Include="DencityPeaks.py" />
+    <Compile Include="KMean.py">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Lib.py">
+      <SubType>Code</SubType>
+    </Compile>
   </ItemGroup>
   <ItemGroup>
-    <Content Include="weatherHistory.csv" />
-    <Content Include="weather_data_nyc_centralpark_2016%281%29.csv" />
+    <Content Include="april-2017.csv" />
+    <Content Include="full-year-2017-studencka-189-small.csv" />
+    <Content Include="full-year-2017-studencka-189.csv" />
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Python Tools\Microsoft.PythonTools.targets" />
   <!-- Uncomment the CoreCompile target to enable the Build command in

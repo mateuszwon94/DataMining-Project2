@@ -15,9 +15,7 @@ import csv
 import datetime
 from sys import float_info
 from pyspark import SparkContext, SparkConf
-
-clusters_color = [name for name, c in dict(colors.BASE_COLORS, **colors.CSS4_COLORS).items() if "white" not in name]
-random.shuffle(clusters_color)
+from Lib import *
 
 X = 'temperature'
 Y = 'pm1'
@@ -27,10 +25,6 @@ def print_point(point, x, y):
     print("(%d, %d)  -> id=%d,  \tid_of_closest_neighbor=%s,\tcluster=%s,\tdensity=%d,\tdistance_to_higher_density_point=%.4f" % \
         (point[x], point[y], point["id"], str(point["id_of_point_with_higher_density"]),
          str(point["cluster"]), point["density"], point["distance_to_higher_density_point"]))
-
-# Dinstance between two points
-def distance_to(point_i, point_j, x, y):
-    return math.sqrt((point_i[x] - point_j[x])**2 + (point_i[y] - point_j[y])**2)
 
 # Function computing density for points
 # Density is computed as a number of points which is closed to current than cutoff_distance
@@ -71,11 +65,6 @@ def set_distance_to_higher_density_point(point_i, points):
 
     return point_i
 
-def set_refed_points(point_i, points):
-    point_i["refed_points"] = [ p["id"] for p in points if p["id_of_point_with_higher_density"] == point_i["id"] ]
-
-    return point_i
-
 def compleat(point, labels):
     (id, point) = point
     new_point = { labels[i] : elem for i, elem in enumerate(point) }
@@ -107,7 +96,7 @@ def compleat(point, labels):
 
     #print(new_point)
     return new_point
-    
+
 # Function generates n random points 
 # and calculates density and distance to higher density point
 def get_and_calculate(sc, csv_file_name, cutoff_distance):
@@ -119,8 +108,7 @@ def get_and_calculate(sc, csv_file_name, cutoff_distance):
     print("points:", int(len(points)))
     pointsRDD = sc.parallelize(points)
 
-    copleated_points = pointsRDD.map(
-        lambda point: compleat(point, labels))
+    copleated_points = pointsRDD.map(lambda point: compleat(point, labels))
     list_of_copleated_points = [point for point in copleated_points.toLocalIterator()]
     
     print("points compleated")
@@ -141,23 +129,6 @@ def get_and_calculate(sc, csv_file_name, cutoff_distance):
     print("points with higher density set")
     
     return points_with_distance_to_higher_density_point
- 
-def get_color(point, clusters_color):
-    if point["cluster"] is None:
-        return clusters_color[0]
-    return clusters_color[point["cluster"]]
-
-# Simple plot of generated points
-def plot_of_x_and_y(points, x_label, y_label, file_name):
-    x = [point[x_label] for point in points]
-    y = [point[y_label] for point in points]
-    c = [get_color(point, clusters_color) for point in points]
-    fig, ax = matplotlib.pyplot.subplots()
-    ax.scatter(x, y)
-    ax.set_xlabel(x_label)
-    ax.set_ylabel(y_label)
-    fig.savefig(file_name)
-    print("Image '%s' saved!" % file_name)
 
 def plot_of_density_and_distance_to_higher_density_point(points, file_name):
     points = points.collect()
@@ -165,20 +136,9 @@ def plot_of_density_and_distance_to_higher_density_point(points, file_name):
     y = [point["distance_to_higher_density_point"] for point in points]
     c = ['green' if point["cluster"] is not None else 'red' for point in points]
     fig, ax = matplotlib.pyplot.subplots()
-    ax.scatter(x, y, c=c)
+    ax.scatter(x, y, c=c, s=5)
     ax.set_xlabel('density')
     ax.set_ylabel('distance_to_higher_density_point')
-    fig.savefig(file_name)
-    print("Image '%s' saved!" % file_name)
-
-def plot_clusters(points, x_label, y_label, file_name):
-    x = [point[x_label] for point in points.collect()]
-    y = [point[y_label] for point in points.collect()]
-    c = [get_color(point, clusters_color) for point in points.collect()]
-    fig, ax = matplotlib.pyplot.subplots()
-    ax.scatter(x, y, color=c)
-    ax.set_xlabel(x_label)
-    ax.set_ylabel(y_label)
     fig.savefig(file_name)
     print("Image '%s' saved!" % file_name)
 
@@ -257,7 +217,7 @@ def complexity_in_time(sc, clusters, limit, cutoff_distance, p_min, p_max, k):
     print("Average time is = %f"% (i, avg))
 
     fig, ax = matplotlib.pyplot.subplots()
-    ax.scatter(complexity_data["points"], complexity_data["time"])
+    ax.scatter(complexity_data["points"], complexity_data["time"], s=5)
     ax.set_xlabel('points')
     ax.set_ylabel('time')
     fig.savefig('complexity_time-%d.png' % clusters)
@@ -285,7 +245,7 @@ def complexity_in_clusters_number(sc, clusters_min, clusters_max, limit, cutoff_
             continue
 
     fig, ax = matplotlib.pyplot.subplots()
-    ax.scatter(complexity_data["points"], complexity_data["time"])
+    ax.scatter(complexity_data["points"], complexity_data["time"], s=5)
     ax.set_xlabel('clusters')
     ax.set_ylabel('time')
     fig.savefig('complexity_clusters-%d.png' % p)
@@ -321,7 +281,7 @@ def main(sc, csv_file_name, clusters, cutoff_distance):
 
     points = assign_points_to_clusters(points)
     print("clusters done")
-    plot_clusters(points, X, Y, 'clusters.png')  
+    plot_clusters(points, X, Y, 'clusters-dencity_peak.png')  
     plot_of_x_and_y(points, "day_of_year", "pm1", "date_and_pm1_clusters.png")
 
     print("\n\nPoints:")
