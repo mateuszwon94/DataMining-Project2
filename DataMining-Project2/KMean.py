@@ -18,12 +18,9 @@ from pyspark import SparkContext, SparkConf
 from scipy.spatial import distance
 from Lib import *
 
-clusters_color = [name for name, c in dict(colors.BASE_COLORS, **colors.CSS4_COLORS).items() if "white" not in name]
-random.shuffle(clusters_color)
-
 X = 'temperature'
 Y = 'pm1'
-main_data = ('temperature', 'pm1')
+main_data = ('temperature', 'humidity', 'pressure', 'pm1')
 
 # Nice output :)
 def print_point(point):
@@ -83,16 +80,14 @@ def get_and_calculate(sc, csv_file_name):
     return copleated_points
 
 def choose_centers_of_clusters(points, clusters):
-    min_x = int(round(points.min(key=lambda p: p[X])[X]))
-    max_x = int(round(points.max(key=lambda p: p[X])[X]))
-    
-    min_y = int(round(points.min(key=lambda p: p[Y])[Y]))
-    max_y = int(round(points.max(key=lambda p: p[Y])[Y]))
+    centers = [ {"main_data": [], "cluster" : i+1 } for i in range(clusters) ]
+    for l in main_data:
+        for i in range(clusters):
+            min_x = int(round(points.min(key=lambda p: p[l])[l]))
+            max_x = int(round(points.max(key=lambda p: p[l])[l]))
 
-    centers = [ { X: random.randrange(min_x, max_x), Y: random.randrange(min_y, max_y), "cluster" : i+1 } for i in range(clusters) ]
-
-    for center in centers:
-        center["main_data"] = [ center[l] for l in main_data ]
+            centers[i][l] = random.randrange(min_x, max_x)
+            centers[i]["main_data"].append(centers[i][l])
 
     return centers
 
@@ -147,6 +142,8 @@ def main(sc, csv_file_name, clusters, metric=distance.euclidean):
     points = assign_points_to_clusters(points, centers, metric)
     print("clusters done")
     plot_clusters(points, X, Y, 'clusters_K-mean_' + func_name + '.png')  
+    
+    make_basic_plots(points, sufix='_clusters_'+ func_name)
 
     points = points.collect()
     print("\n\nPoints:")

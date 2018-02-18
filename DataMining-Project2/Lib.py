@@ -52,7 +52,7 @@ def plot_of_x_and_y(points, x_label, y_label, file_name):
     y = [point[y_label] for point in points]
     c = ['black' if point['cluster'] is None else get_color(point, clusters_color) for point in points]
     fig, ax = matplotlib.pyplot.subplots()
-    ax.scatter(x, y, color=c)
+    ax.scatter(x, y, color=c, s=5)
     ax.set_xlabel(x_label)
     ax.set_ylabel(y_label)
     fig.savefig(file_name)
