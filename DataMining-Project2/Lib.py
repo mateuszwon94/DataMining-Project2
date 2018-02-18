@@ -20,6 +20,8 @@ from scipy.spatial import distance
 clusters_color = [name for name, c in dict(colors.BASE_COLORS, **colors.CSS4_COLORS).items() if "white" not in name]
 random.shuffle(clusters_color)
 
+clusters_color = ['black', 'blue', 'red', 'magenta', 'yellow']
+
 # Dinstance between two points
 def distance_to(point_i, point_j, metric=distance.euclidean):
     return metric(point_i["main_data"], point_j["main_data"])
@@ -73,3 +75,15 @@ def plot_temperature_humidity_pressure(points, file_name):
     plt.ylabel('pressure')
     plt.savefig(file_name)
     print("Image '%s' saved!" % file_name)
+
+def set_right_cluster(point):
+    if point["date"].month < 3 or point["date"].month == 12:
+        point["cluster"] = 1
+    elif point["date"].month < 6:
+        point["cluster"] = 2
+    elif point["date"].month < 9:
+        point["cluster"] = 3
+    elif point["date"].month < 12:
+        point["cluster"] = 4
+
+    return point

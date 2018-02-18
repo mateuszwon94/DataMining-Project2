@@ -107,10 +107,12 @@ def assign_points_to_clusters(points, centers, metric=distance.euclidean):
         for center in centers:
             points_in_cluster = points.filter(lambda point: point["cluster"] == center["cluster"] )
 
-            center[X] = points_in_cluster.map(lambda p: p[X]).mean()
-            center[Y] = points_in_cluster.map(lambda p: p[Y]).mean()
+            try:
+                center[X] = points_in_cluster.map(lambda p: p[X]).sum() / points_in_cluster.map(lambda p: p[X]).count()
+                center[Y] = points_in_cluster.map(lambda p: p[Y]).sum() / points_in_cluster.map(lambda p: p[Y]).count()
             
-            center["main_data"] = [ center[l] for l in main_data ]
+                center["main_data"] = [ center[l] for l in main_data ]
+            except: continue
 
     any_change = False
     
@@ -135,6 +137,11 @@ def assign_points_to_clusters(points, centers, metric=distance.euclidean):
 def main(sc, csv_file_name, clusters, metric=distance.euclidean):
     func_name = str(metric).split(" ")[1]
     points = get_and_calculate(sc, csv_file_name)
+
+    points_with_right_clusters = points.map(lambda point: set_right_cluster(point))
+    for val in ['temperature', 'day_of_year', 'pressure', 'humidity']:
+        plot_clusters(points_with_right_clusters, val, Y, 'clusters_right_' + val + '.png')
+
     centers = choose_centers_of_clusters(points, clusters)
     print("centers done", centers)
 

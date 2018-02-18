@@ -280,6 +280,11 @@ def check_of_cutoff_distance(sc, clusters, limit, cutoff_distance_min, cutoff_di
 def main(sc, csv_file_name, clusters, cutoff_distance):
     points = get_and_calculate(sc, csv_file_name, cutoff_distance)
     plot_temperature_humidity_pressure(points, "temperature_humidity_pressure.png")
+
+    points_with_right_clusters = points.map(lambda point: set_right_cluster(point))
+    for val in ['temperature', 'day_of_year', 'pressure', 'humidity']:
+        plot_clusters(points_with_right_clusters, val, Y, 'clusters_right_' + val + '.png')
+
     points = choose_centers_of_clusters(points, clusters)
     print("centers done")
     plot_of_density_and_distance_to_higher_density_point(points, 'density.png')
