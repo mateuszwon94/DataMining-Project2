@@ -26,9 +26,9 @@ Y = 'pm1'
 main_data = ('temperature', 'pm1')
 
 # Nice output :)
-def print_point(point, x, y):
-    print("(%d, %d)  -> id=%d,  \tcluster=%s" % \
-        (point[x], point[y], point["id"], str(point["cluster"])))
+def print_point(point):
+    print("(temperature=%d, humidity=%d, pressure=%d, pm1=%d, day_of_year=%d) \t->  id=%d,\tcluster=%s" % \
+        (point["temperature"], point["humidity"], point["pressure"], point["pm1"], point["day_of_year"], point["id"], str(point["cluster"])))
 
 def compleat(point, labels):
     (id, point) = point
@@ -138,9 +138,7 @@ def main(sc, csv_file_name, clusters, metric=distance.euclidean):
     func_name = str(metric).split(" ")[1]
     points = get_and_calculate(sc, csv_file_name)
 
-    points_with_right_clusters = points.map(lambda point: set_right_cluster(point))
-    for val in ['temperature', 'day_of_year', 'pressure', 'humidity']:
-        plot_clusters(points_with_right_clusters, val, Y, 'clusters_right_' + val + '.png')
+    make_basic_plots(points)
 
     centers = choose_centers_of_clusters(points, clusters)
     print("centers done", centers)
@@ -150,9 +148,16 @@ def main(sc, csv_file_name, clusters, metric=distance.euclidean):
     print("clusters done")
     plot_clusters(points, X, Y, 'clusters_K-mean_' + func_name + '.png')  
 
+    points = points.collect()
     print("\n\nPoints:")
-    for point in points.collect():
-        print_point(point, X, Y)
+    i = 1
+    for cluster in range(1, clusters+1) + [None]:
+        for point in points:
+            if point["cluster"] == cluster:
+                print("%4d)" % i, end=' ')
+                print_point(point)
+                i += 1
+        print("\n\n")
 
 if __name__ == "__main__":
     conf = SparkConf().setAppName('DataMining_Project')

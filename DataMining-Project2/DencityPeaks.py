@@ -19,13 +19,12 @@ from Lib import *
 
 X = 'temperature'
 Y = 'pm1'
-main_data = ('temperature', 'pm1')
+main_data = ('temperature', 'humidity', 'pressure', 'pm1')
 
 # Nice output :)
-def print_point(point, x_label, y_label):
-    print("(%s=%d, %s=%d, day_of_year=%d)  -> id=%d,  \tid_of_closest_neighbor=%s,\tcluster=%s,\tdensity=%d,\tdistance_to_higher_density_point=%.4f" % \
-        (x_label, point[x_label], y_label, point[y_label], point["day_of_year"], point["id"], str(point["id_of_point_with_higher_density"]),
-         str(point["cluster"]), point["density"], point["distance_to_higher_density_point"]))
+def print_point(point):
+    print("(temperature=%d, humidity=%d, pressure=%d, pm1=%d, day_of_year=%d) \t->  id=%d,\tid_of_closest_neighbor=%s,\tcluster=%s,\tdensity=%d,\tdistance_to_higher_density_point=%.4f" % \
+        (point["temperature"], point["humidity"], point["pressure"], point["pm1"], point["day_of_year"], point["id"], str(point["id_of_point_with_higher_density"]), str(point["cluster"]), point["density"], point["distance_to_higher_density_point"]))
 
 # Function computing density for points
 # Density is computed as a number of points which is closed to current than cutoff_distance
@@ -117,10 +116,6 @@ def get_and_calculate(sc, csv_file_name, cutoff_distance):
     
     print("points compleated")
     
-    plot_of_x_and_y(list_of_copleated_points, "day_of_year", "pm1", "date_and_pm1.png")
-    plot_of_x_and_y(list_of_copleated_points, "day_of_year", "pm10", "date_and_pm10.png")
-    plot_of_x_and_y(list_of_copleated_points, "day_of_year", "pm25", "date_and_pm25.png")
-
     points_with_local_density = copleated_points.map(
         lambda point: set_density(point, list_of_copleated_points, cutoff_distance))
     list_of_random_points = [point for point in points_with_local_density.toLocalIterator()]
@@ -166,7 +161,7 @@ def choose_centers_of_clusters(points, n):
     print("\n\nCenters of clusters:")
     for point in points.collect():
         if point["cluster"]:
-            print_point(point, X, Y)
+            print_point(point)
 
     return points
 
@@ -209,7 +204,7 @@ def complexity_in_time(sc, clusters, limit, cutoff_distance, p_min, p_max, k):
             complexity_data["points"].append(i)
             complexity_data["time"].append(elapsed_time)
 
-            plot_clusters(points, 'clusters_T-%d.png' % i)
+            plot_clusters(points, X, Y, 'clusters_T-%d.png' % i)
             print("Points: %d  --->  time = %f"% (i, elapsed_time))
             matplotlib.pyplot.close('all')
            
@@ -259,31 +254,24 @@ def check_of_cutoff_distance(sc, clusters, limit, cutoff_distance_min, cutoff_di
     pointsRDD = sc.parallelize(list_of_random_points)
     
     for i in xrange(cutoff_distance_min, cutoff_distance_max + 1, k):
-        #try:
-            points_with_local_density = pointsRDD.map(
-                lambda point: set_density(point, list_of_random_points, i))
-            list_of_random_points = [point for point in points_with_local_density.toLocalIterator()]
+        points_with_local_density = pointsRDD.map(
+            lambda point: set_density(point, list_of_random_points, i))
+        list_of_random_points = [point for point in points_with_local_density.toLocalIterator()]
 
-            points = points_with_local_density.map(
-                lambda point: set_distance_to_higher_density_point(point, list_of_random_points))
-            points = choose_centers_of_clusters(points, clusters)
-            points = assign_points_to_clusters(points)
+        points = points_with_local_density.map(
+            lambda point: set_distance_to_higher_density_point(point, list_of_random_points))
+        points = choose_centers_of_clusters(points, clusters)
+        points = assign_points_to_clusters(points)
         
-            plot_clusters(points, 'clusters_C-%f.png' % i)
-            print("Cut Off: %f"% (i))
-            matplotlib.pyplot.close('all')
-           
-        #except Exception:
-        #    print("Exception!!!")
-        #    continue
+        plot_clusters(points, X, Y, 'clusters_C-%f.png' % i)
+        print("Cut Off: %f"% (i))
+        matplotlib.pyplot.close('all')
+
 
 def main(sc, csv_file_name, clusters, cutoff_distance):
     points = get_and_calculate(sc, csv_file_name, cutoff_distance)
-    plot_temperature_humidity_pressure(points, "temperature_humidity_pressure.png")
 
-    points_with_right_clusters = points.map(lambda point: set_right_cluster(point))
-    for val in ['temperature', 'day_of_year', 'pressure', 'humidity']:
-        plot_clusters(points_with_right_clusters, val, Y, 'clusters_right_' + val + '.png')
+    make_basic_plots(points)
 
     points = choose_centers_of_clusters(points, clusters)
     print("centers done")
@@ -291,18 +279,17 @@ def main(sc, csv_file_name, clusters, cutoff_distance):
 
     points = assign_points_to_clusters(points)
     print("clusters done")
-    plot_clusters(points, X, Y, 'clusters-dencity_peak.png')  
-    plot_of_x_and_y(points.collect(), "day_of_year", "pm1", "date_and_pm1_clusters.png")
+    
+    make_basic_plots(points, sufix='_clusters')
 
-    print("\n\nPoints:")
     points = points.collect()
-
+    print("\n\nPoints:")
     i = 1
     for cluster in range(1, clusters+1) + [None]:
         for point in points:
             if point["cluster"] == cluster:
                 print("%4d)" % i, end=' ')
-                print_point(point, X, Y)
+                print_point(point)
                 i += 1
         print("\n\n")
 
@@ -310,10 +297,6 @@ if __name__ == "__main__":
     conf = SparkConf().setAppName('DataMining_Project')
     sc = SparkContext(conf=conf)
 
-    main(sc, csv_file_name='full-year-2017-studencka-189-very-small.csv', clusters=4, cutoff_distance=2)
-
-    #complexity_in_time(sc, clusters=5, limit=10, cutoff_distance=1, p_min=20, p_max=1000, k=20)
-    #complexity_in_clusters_number(sc, clusters_min=3, clusters_max=50, limit=10, cutoff_distance=1, p=300)
-    #check_of_cutoff_distance(sc, clusters=5, limit=10, cutoff_distance_min=1, cutoff_distance_max=10, p=300)
+    main(sc, csv_file_name='full-year-2017-studencka-189-very-small.csv', clusters=4, cutoff_distance=15)
 
     matplotlib.pyplot.close('all')

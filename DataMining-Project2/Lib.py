@@ -22,6 +22,10 @@ random.shuffle(clusters_color)
 
 clusters_color = ['black', 'blue', 'red', 'magenta', 'yellow']
 
+X = 'temperature'
+Y = 'pm1'
+main_data = ('temperature', 'pm1')
+
 # Dinstance between two points
 def distance_to(point_i, point_j, metric=distance.euclidean):
     return metric(point_i["main_data"], point_j["main_data"])
@@ -55,7 +59,6 @@ def plot_of_x_and_y(points, x_label, y_label, file_name):
     print("Image '%s' saved!" % file_name)
 
 def plot_temperature_humidity_pressure(points, file_name):
-    points = points.collect()
     x = [point["day_of_year"] for point in points]
     y1 = [point["temperature"] for point in points]
     y2 = [point["humidity"] for point in points]
@@ -87,3 +90,14 @@ def set_right_cluster(point):
         point["cluster"] = 4
 
     return point
+
+def make_basic_plots(points, sufix=''):
+    points_with_right_clusters = points.map(lambda point: set_right_cluster(point))
+    for val in ['temperature', 'day_of_year', 'pressure', 'humidity']:
+        plot_clusters(points_with_right_clusters, val, Y, 'clusters_right_' + val + '.png')
+
+    points = points.collect()
+    plot_temperature_humidity_pressure(points, "temperature_humidity_pressure.png")
+    plot_of_x_and_y(points, 'temperature', 'humidity', "temperature_humidity%s.png" % sufix)
+    plot_of_x_and_y(points, 'temperature', 'pressure', "temperature_pressure%s.png" % sufix)
+    plot_of_x_and_y(points, 'humidity', 'pressure', "humidity_pressure%s.png" % sufix)
