@@ -15,13 +15,14 @@ import csv
 import datetime
 from sys import float_info
 from pyspark import SparkContext, SparkConf
+from scipy.spatial import distance
 
 clusters_color = [name for name, c in dict(colors.BASE_COLORS, **colors.CSS4_COLORS).items() if "white" not in name]
 random.shuffle(clusters_color)
 
 # Dinstance between two points
-def distance_to(point_i, point_j, x, y):
-    return math.sqrt((point_i[x] - point_j[x])**2 + (point_i[y] - point_j[y])**2)
+def distance_to(point_i, point_j, x, y, metric=distance.euclidean):
+    return metric([point_i[x], point_i[y]], [point_j[x], point_j[y]])
 
 def get_color(point, clusters_color):
     if point["cluster"] is None:
