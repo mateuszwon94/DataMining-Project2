@@ -15,6 +15,7 @@ import csv
 import datetime
 from sys import float_info
 from pyspark import SparkContext, SparkConf
+from scipy.spatial import distance
 from Lib import *
 
 clusters_color = [name for name, c in dict(colors.BASE_COLORS, **colors.CSS4_COLORS).items() if "white" not in name]
@@ -22,6 +23,7 @@ random.shuffle(clusters_color)
 
 X = 'temperature'
 Y = 'pm1'
+main_data = ('temperature', 'pm1')
 
 # Nice output :)
 def print_point(point, x, y):
@@ -51,6 +53,8 @@ def compleat(point, labels):
     new_point["pm10"] = int(new_point["pm10"])
     new_point["pm25"] = int(new_point["pm25"])
 
+    new_point["main_data"] = [ new_point[l] for l in main_data ]
+
     new_point["cluster"] = None
     new_point["id"] = int(id)
 
@@ -60,18 +64,6 @@ def compleat(point, labels):
 # Function generates n random points 
 # and calculates density and distance to higher density point
 def get_and_calculate(sc, csv_file_name):
-
-    # Simple plot of generated points
-    def plot_of_x_and_y(points, x_label, y_label, file_name):
-        x = [point[x_label] for point in points]
-        y = [point[y_label] for point in points]
-        fig, ax = matplotlib.pyplot.subplots()
-        ax.scatter(x, y, s=5)
-        ax.set_xlabel(x_label)
-        ax.set_ylabel(y_label)
-        fig.savefig(file_name)
-        print("Image '%s' saved!" % file_name)
-
     with open(csv_file_name) as csvfile:
         points = [ [ elem for elem in row ] for row in csv.reader(csvfile, delimiter=';') ]
 
@@ -97,12 +89,17 @@ def choose_centers_of_clusters(points, clusters):
     min_y = int(round(points.min(key=lambda p: p[Y])[Y]))
     max_y = int(round(points.max(key=lambda p: p[Y])[Y]))
 
-    return [ { X: random.randrange(min_x, max_x), Y: random.randrange(min_y, max_y), "cluster" : i+1 } for i in range(clusters) ]
+    centers = [ { X: random.randrange(min_x, max_x), Y: random.randrange(min_y, max_y), "cluster" : i+1 } for i in range(clusters) ]
 
-def assign_points_to_clusters(points, centers):
+    for center in centers:
+        center["main_data"] = [ center[l] for l in main_data ]
+
+    return centers
+
+def assign_points_to_clusters(points, centers, metric=distance.euclidean):
 
     def set_cluster(point, centers):
-        point["cluster"] = sorted(centers,key=lambda c: distance_to(c, point, X, Y))[0]["cluster"]
+        point["cluster"] = sorted(centers, key=lambda c: distance_to(c, point, metric))[0]["cluster"]
 
         return point
     
@@ -112,6 +109,8 @@ def assign_points_to_clusters(points, centers):
 
             center[X] = points_in_cluster.map(lambda p: p[X]).mean()
             center[Y] = points_in_cluster.map(lambda p: p[Y]).mean()
+            
+            center["main_data"] = [ center[l] for l in main_data ]
 
     any_change = False
     
@@ -133,14 +132,16 @@ def assign_points_to_clusters(points, centers):
 
         was = now
 
-def main(sc, csv_file_name, clusters):
+def main(sc, csv_file_name, clusters, metric=distance.euclidean):
+    func_name = str(metric).split(" ")[1]
     points = get_and_calculate(sc, csv_file_name)
     centers = choose_centers_of_clusters(points, clusters)
     print("centers done", centers)
 
-    points = assign_points_to_clusters(points, centers)
+    print("Assign with", func_name, "metric")
+    points = assign_points_to_clusters(points, centers, metric)
     print("clusters done")
-    plot_clusters(points, X, Y, 'clusters_K-mean.png', clusters_color)  
+    plot_clusters(points, X, Y, 'clusters_K-mean_' + func_name + '.png')  
 
     print("\n\nPoints:")
     for point in points.collect():
@@ -150,7 +151,7 @@ if __name__ == "__main__":
     conf = SparkConf().setAppName('DataMining_Project')
     sc = SparkContext(conf=conf)
 
-    main(sc, csv_file_name='full-year-2017-studencka-189-small.csv', clusters=4)
+    for metric in [distance.euclidean, distance.cityblock, distance.cosine, distance.chebyshev]:
+        main(sc, csv_file_name='full-year-2017-studencka-189-small.csv', clusters=4, metric=metric)
 
     matplotlib.pyplot.close('all')
-    print("\n\nDataMining_Project!")
