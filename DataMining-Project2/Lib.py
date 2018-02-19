@@ -130,3 +130,4 @@ def make_basic_plots(points, sufix=''):
     plot_of_x_and_y(points, 'temperature', 'humidity', "temperature_humidity%s.png" % sufix)
     plot_of_x_and_y(points, 'temperature', 'pressure', "temperature_pressure%s.png" % sufix)
     plot_of_x_and_y(points, 'humidity', 'pressure', "humidity_pressure%s.png" % sufix)
+    plot_of_x_and_y(points, 'day_of_year', Y, "day_of_year%s.png" % sufix)
